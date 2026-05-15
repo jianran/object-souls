@@ -8,75 +8,72 @@
 </head>
 <body>
 <div class="container" id="app">
-  <!-- Step 1: Record -->
   <div id="step-record">
     <h1>🎤</h1>
-    <h2>Record your story</h2>
-    <p class="subtitle">Tell the story behind this object. Why does it matter?<br>Whoever finds it next will hear your voice.</p>
+    <h2>물건의 이야기를 남겨주세요</h2>
+    <p class="subtitle">이 물건이 왜 특별한가요? <br>다음 주인에게 당신의 목소리를 들려주세요.</p>
 
     <div class="form-group">
-      <label>What is this object? (optional)</label>
-      <input type="text" id="item-title" placeholder="e.g. Vintage Nikon Camera" maxlength="100">
+      <label>물건 이름 (선택사항)</label>
+      <input type="text" id="item-title" placeholder="예: 빈티지 니콘 카메라" maxlength="100">
     </div>
 
     <div class="form-group">
-      <label>당근 item ID (optional, for reconnection)</label>
-      <input type="text" id="daangn-id" placeholder="Paste the item ID from your listing" maxlength="50">
+      <label>당근 물건 ID (선택사항, QR 분실 시 복구용)</label>
+      <input type="text" id="daangn-id" placeholder="당근 게시글의 ID를 입력하세요" maxlength="50">
     </div>
 
     <div class="recorder" id="recorder">
       <div class="timer" id="timer">0:00</div>
       <button class="btn btn-record" id="btn-record" onclick="toggleRecording()">
         <span class="icon">⏺</span>
-        <span class="label" id="record-label">Start Recording</span>
+        <span class="label" id="record-label">녹음 시작</span>
       </button>
     </div>
 
     <div id="preview-area" style="display:none;">
       <audio id="preview-audio" controls></audio>
       <button class="btn btn-primary" id="btn-submit" onclick="submitStory()">
-        ✨ Generate QR Code
+        ✨ QR 코드 생성
       </button>
       <button class="btn btn-secondary" onclick="resetRecording()">
-        🔄 Re-record
+        🔄 다시 녹음
       </button>
     </div>
 
     <div id="loading" style="display:none;">
-      <p>Processing...</p>
+      <p>처리 중...</p>
     </div>
   </div>
 
-  <!-- Step 2: QR Result -->
   <div id="step-result" style="display:none;">
-    <h2>✅ Story saved!</h2>
-    <p class="subtitle">Download this QR code and add it to your 당근 listing.</p>
+    <h2>✅ 이야기가 저장되었습니다!</h2>
+    <p class="subtitle">QR 코드를 다운로드해서 당근 게시글에 추가하세요.</p>
 
     <div class="qr-result" id="qr-result"></div>
     <p class="qr-url" id="qr-url"></p>
 
     <div class="btn-group">
-      <button class="btn btn-primary" onclick="downloadQR()">📥 Download QR</button>
-      <button class="btn btn-secondary" onclick="copyLink()">🔗 Copy Link</button>
+      <button class="btn btn-primary" onclick="downloadQR()">📥 QR 다운로드</button>
+      <button class="btn btn-secondary" onclick="copyLink()">🔗 링크 복사</button>
     </div>
 
     <div class="tip">
-      <strong>💡 Tip:</strong> Save the QR image on your phone too — the buyer can scan it directly from your screen at the meetup.
+      <strong>💡 팁:</strong> QR 이미지를 핸드폰에도 저장하세요 — 직거래 시 상대방이 바로 스캔할 수 있습니다.
     </div>
 
-    <button class="btn btn-secondary" onclick="resetAll()">➕ Record another story</button>
+    <button class="btn btn-secondary" onclick="resetAll()">➕ 다른 이야기 녹음하기</button>
   </div>
 
-  <!-- Step 3: Error -->
   <div id="step-error" style="display:none;">
-    <h2>⚠️ Something went wrong</h2>
+    <h2>⚠️ 오류가 발생했습니다</h2>
     <p id="error-message"></p>
-    <button class="btn btn-secondary" onclick="resetAll()">Try again</button>
+    <button class="btn btn-secondary" onclick="resetAll()">다시 시도</button>
   </div>
 </div>
 
 <footer class="footer">
-  <p>Object Souls — Every object has a story.</p>
+  <p>Object Souls — 모든 물건에는 이야기가 있다.</p>
 </footer>
 
 <script>
@@ -112,11 +109,11 @@ async function startRecording() {
     mediaRecorder.start();
     isRecording = true;
     document.getElementById('btn-record').classList.add('recording');
-    document.getElementById('record-label').textContent = 'Stop Recording';
+    document.getElementById('record-label').textContent = '녹음 중지';
     document.getElementById('btn-record').querySelector('.icon').textContent = '⏹';
     startTimer();
   } catch (err) {
-    alert('Microphone access is required. Please allow access and try again.');
+    alert('마이크 접근 권한이 필요합니다. 브라우저 설정에서 마이크를 허용해주세요.');
     console.error(err);
   }
 }
@@ -125,7 +122,7 @@ function stopRecording() {
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop();
     isRecording = false;
-    document.getElementById('record-label').textContent = '✅ Recorded';
+    document.getElementById('record-label').textContent = '✅ 녹음 완료';
     document.getElementById('btn-record').querySelector('.icon').textContent = '✅';
     stopTimer();
   }
@@ -135,7 +132,7 @@ function resetRecording() {
   audioBlob = null; audioChunks = [];
   document.getElementById('preview-area').style.display = 'none';
   document.getElementById('btn-record').classList.remove('recording');
-  document.getElementById('record-label').textContent = 'Start Recording';
+  document.getElementById('record-label').textContent = '녹음 시작';
   document.getElementById('btn-record').querySelector('.icon').textContent = '⏺';
   seconds = 0; document.getElementById('timer').textContent = '0:00';
 }
@@ -170,10 +167,8 @@ async function submitStory() {
   try {
     const res = await fetch('/api/items', { method: 'POST', body: formData });
     const data = await res.json();
-
     qrSvgData = data.qr_svg;
     currentQrCodeId = data.qr_code_id;
-
     document.getElementById('step-record').style.display = 'none';
     document.getElementById('step-result').style.display = 'block';
     document.getElementById('qr-result').innerHTML = qrSvgData;
@@ -181,7 +176,7 @@ async function submitStory() {
   } catch (err) {
     document.getElementById('step-record').style.display = 'none';
     document.getElementById('step-error').style.display = 'block';
-    document.getElementById('error-message').textContent = 'Failed to save story. Please try again.';
+    document.getElementById('error-message').textContent = '이야기 저장에 실패했습니다. 다시 시도해주세요.';
     console.error(err);
   } finally {
     document.getElementById('loading').style.display = 'none';
@@ -202,8 +197,8 @@ function downloadQR() {
 
 async function copyLink() {
   const url = document.getElementById('qr-url').textContent;
-  try { await navigator.clipboard.writeText(url); alert('Link copied!'); }
-  catch { prompt('Copy this link:', url); }
+  try { await navigator.clipboard.writeText(url); alert('링크가 복사되었습니다!'); }
+  catch { prompt('이 링크를 복사하세요:', url); }
 }
 
 function resetAll() {
