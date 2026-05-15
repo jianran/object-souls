@@ -1,6 +1,9 @@
-__pycache__/
+__pycache__
 *.pyc
 .env
 data/
 recordings/
 .venv/
+cert.pem
+key.pem
+*.log
