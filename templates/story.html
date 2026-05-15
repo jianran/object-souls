@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Object Souls</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="container" id="app">
+  <!-- State set by JS based on injected data -->
+  <div id="story-view" style="display:none;">
+    <h1>📖</h1>
+    <h2 id="item-title"></h2>
+    <p class="subtitle" id="story-count-label"></p>
+
+    <div class="story-chain" id="story-chain"></div>
+    <hr>
+
+    <h3>Add your story</h3>
+    <p class="subtitle">Read this object? Own it now? Leave a voice message for the next person.</p>
+
+    <div class="recorder">
+      <div class="timer" id="timer">0:00</div>
+      <button class="btn btn-record" id="btn-record" onclick="toggleRecording()">
+        <span class="icon">⏺</span>
+        <span class="label" id="record-label">Start Recording</span>
+      </button>
+    </div>
+
+    <div id="preview-area" style="display:none;">
+      <audio id="preview-audio" controls></audio>
+      <div class="form-group">
+        <label>Email (optional — get a link to come back)</label>
+        <input type="email" id="email" placeholder="your@email.com" maxlength="200">
+      </div>
+      <button class="btn btn-primary" id="btn-add-story" onclick="addStory()">✨ Add my story</button>
+      <button class="btn btn-secondary" onclick="resetRecording()">🔄 Re-record</button>
+    </div>
+
+    <div id="loading" style="display:none;"><p>Adding your story...</p></div>
+    <div id="success-area" style="display:none;">
+      <h3>✅ Story added!</h3>
+      <p>Your voice is now part of this object's journey.</p>
+    </div>
+  </div>
+
+  <div id="not-found-view" style="display:none;">
+    <h1>🔍</h1>
+    <h2>Story not found</h2>
+    <p class="subtitle">This QR code doesn't match any object in our system.</p>
+
+    <div class="card">
+      <h3>Did you generate a new QR for an existing object?</h3>
+      <p>Enter the 당근 item ID from your original listing to reconnect:</p>
+      <div class="form-group">
+        <input type="text" id="reconnect-daangn-id" placeholder="당근 item ID" maxlength="50">
+      </div>
+      <button class="btn btn-primary" onclick="tryReconnect()">🔗 Reconnect</button>
+      <hr>
+      <p>Or go back to <a href="/">record a new story</a>.</p>
+    </div>
+    <div id="reconnect-result"></div>
+  </div>
+</div>
+
+<footer class="footer">
+  <p>Object Souls — Every object has a story.</p>
+</footer>
+
+<script>
+// Data injected by server
+var QR_CODE_ID = '{{ qr_code_id }}';
+var ITEM_DATA = {{ items_json }};
+var STORIES_DATA = {{ stories_json }};
+
+var mediaRecorder = null;
+var audioChunks = [];
+var audioBlob = null;
+var recordingTimer = null;
+var seconds = 0;
+var isRecording = false;
+
+if (ITEM_DATA) {
+  document.getElementById('story-view').style.display = 'block';
+
+  var title = ITEM_DATA.title || 'This object';
+  document.getElementById('item-title').textContent = title;
+  document.getElementById('story-count-label').textContent =
+    STORIES_DATA.length + ' story(ies) attached to this object';
+
+  var chainEl = document.getElementById('story-chain');
+  STORIES_DATA.forEach(function(story, i) {
+    var card = document.createElement('div');
+    card.className = 'story-card';
+    card.innerHTML =
+      '<div class="story-number">Story #' + (i + 1) + '</div>' +
+      '<audio controls class="story-audio">' +
+        '<source src="/recordings/' + story.voice_filename + '" type="audio/webm">' +
+      '</audio>' +
+      '<div class="story-meta">' +
+        'Recorded on ' + (story.created_at || '').slice(0, 10) +
+        (story.email ? ' · <span class="email-badge">💌 Reply available</span>' : '') +
+      '</div>';
+    chainEl.appendChild(card);
+  });
+} else {
+  document.getElementById('not-found-view').style.display = 'block';
+}
+
+async function toggleRecording() {
+  if (isRecording) { stopRecording(); return; }
+  startRecording();
+}
+
+async function startRecording() {
+  try {
+    var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream, {
+      mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+    });
+    audioChunks = [];
+    mediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) audioChunks.push(e.data); };
+    mediaRecorder.onstop = function() {
+      audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+      stream.getTracks().forEach(function(t) { t.stop(); });
+      document.getElementById('preview-area').style.display = 'block';
+      document.getElementById('preview-audio').src = URL.createObjectURL(audioBlob);
+      document.getElementById('btn-record').classList.remove('recording');
+    };
+    mediaRecorder.start();
+    isRecording = true;
+    document.getElementById('btn-record').classList.add('recording');
+    document.getElementById('record-label').textContent = 'Stop Recording';
+    document.getElementById('btn-record').querySelector('.icon').textContent = '⏹';
+    startTimer();
+  } catch (err) {
+    alert('Microphone access is required.');
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+    isRecording = false;
+    document.getElementById('record-label').textContent = '✅ Recorded';
+    document.getElementById('btn-record').querySelector('.icon').textContent = '✅';
+    stopTimer();
+  }
+}
+
+function resetRecording() {
+  audioBlob = null; audioChunks = [];
+  document.getElementById('preview-area').style.display = 'none';
+  document.getElementById('btn-record').classList.remove('recording');
+  document.getElementById('record-label').textContent = 'Start Recording';
+  document.getElementById('btn-record').querySelector('.icon').textContent = '⏺';
+  seconds = 0; document.getElementById('timer').textContent = '0:00';
+}
+
+function startTimer() {
+  seconds = 0; updateTimer();
+  recordingTimer = setInterval(function() {
+    seconds++;
+    if (seconds >= 120) stopRecording();
+    updateTimer();
+  }, 1000);
+}
+
+function stopTimer() { if (recordingTimer) clearInterval(recordingTimer); recordingTimer = null; }
+
+function updateTimer() {
+  var m = Math.floor(seconds / 60);
+  var s = seconds % 60;
+  document.getElementById('timer').textContent = m + ':' + s.toString().padStart(2, '0');
+}
+
+async function addStory() {
+  if (!audioBlob) return;
+  var formData = new FormData();
+  formData.append('qr_code_id', QR_CODE_ID);
+  formData.append('voice_file', audioBlob, 'story.webm');
+  formData.append('email', document.getElementById('email').value.trim());
+
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('btn-add-story').disabled = true;
+
+  try {
+    await fetch('/api/stories', { method: 'POST', body: formData });
+    document.getElementById('preview-area').style.display = 'none';
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('success-area').style.display = 'block';
+  } catch (err) {
+    alert('Failed to add story.');
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('btn-add-story').disabled = false;
+  }
+}
+
+async function tryReconnect() {
+  var daangnId = document.getElementById('reconnect-daangn-id').value.trim();
+  if (!daangnId) { alert('Enter the 당근 item ID'); return; }
+
+  var formData = new FormData();
+  formData.append('daangn_item_id', daangnId);
+  formData.append('old_qr_code_id', '');
+
+  try {
+    var res = await fetch('/api/qr/reconnect', { method: 'POST', body: formData });
+    var data = await res.json();
+    if (data.found) {
+      document.getElementById('reconnect-result').innerHTML =
+        '<div class="card"><h3>✅ Found it!</h3><p>This object has ' + data.story_count +
+        ' story(ies).</p><a href="' + data.story_url + '" class="btn btn-primary">View stories</a></div>';
+    } else {
+      document.getElementById('reconnect-result').innerHTML =
+        '<p style="color:#888;">Not found. <a href="/">Record a new story</a>.</p>';
+    }
+  } catch (err) {
+    alert('Failed to reconnect.');
+  }
+}
+</script>
+</body>
+</html>

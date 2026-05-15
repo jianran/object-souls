@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Object Souls</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="container" id="app">
+  <!-- Step 1: Record -->
+  <div id="step-record">
+    <h1>🎤</h1>
+    <h2>Record your story</h2>
+    <p class="subtitle">Tell the story behind this object. Why does it matter?<br>Whoever finds it next will hear your voice.</p>
+
+    <div class="form-group">
+      <label>What is this object? (optional)</label>
+      <input type="text" id="item-title" placeholder="e.g. Vintage Nikon Camera" maxlength="100">
+    </div>
+
+    <div class="form-group">
+      <label>당근 item ID (optional, for reconnection)</label>
+      <input type="text" id="daangn-id" placeholder="Paste the item ID from your listing" maxlength="50">
+    </div>
+
+    <div class="recorder" id="recorder">
+      <div class="timer" id="timer">0:00</div>
+      <button class="btn btn-record" id="btn-record" onclick="toggleRecording()">
+        <span class="icon">⏺</span>
+        <span class="label" id="record-label">Start Recording</span>
+      </button>
+    </div>
+
+    <div id="preview-area" style="display:none;">
+      <audio id="preview-audio" controls></audio>
+      <button class="btn btn-primary" id="btn-submit" onclick="submitStory()">
+        ✨ Generate QR Code
+      </button>
+      <button class="btn btn-secondary" onclick="resetRecording()">
+        🔄 Re-record
+      </button>
+    </div>
+
+    <div id="loading" style="display:none;">
+      <p>Processing...</p>
+    </div>
+  </div>
+
+  <!-- Step 2: QR Result -->
+  <div id="step-result" style="display:none;">
+    <h2>✅ Story saved!</h2>
+    <p class="subtitle">Download this QR code and add it to your 당근 listing.</p>
+
+    <div class="qr-result" id="qr-result"></div>
+    <p class="qr-url" id="qr-url"></p>
+
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="downloadQR()">📥 Download QR</button>
+      <button class="btn btn-secondary" onclick="copyLink()">🔗 Copy Link</button>
+    </div>
+
+    <div class="tip">
+      <strong>💡 Tip:</strong> Save the QR image on your phone too — the buyer can scan it directly from your screen at the meetup.
+    </div>
+
+    <button class="btn btn-secondary" onclick="resetAll()">➕ Record another story</button>
+  </div>
+
+  <!-- Step 3: Error -->
+  <div id="step-error" style="display:none;">
+    <h2>⚠️ Something went wrong</h2>
+    <p id="error-message"></p>
+    <button class="btn btn-secondary" onclick="resetAll()">Try again</button>
+  </div>
+</div>
+
+<footer class="footer">
+  <p>Object Souls — Every object has a story.</p>
+</footer>
+
+<script>
+let mediaRecorder = null;
+let audioChunks = [];
+let audioBlob = null;
+let recordingTimer = null;
+let seconds = 0;
+let isRecording = false;
+let qrSvgData = null;
+let currentQrCodeId = null;
+
+async function toggleRecording() {
+  if (isRecording) { stopRecording(); return; }
+  startRecording();
+}
+
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream, {
+      mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+    });
+    audioChunks = [];
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+      stream.getTracks().forEach(t => t.stop());
+      document.getElementById('preview-area').style.display = 'block';
+      document.getElementById('preview-audio').src = URL.createObjectURL(audioBlob);
+      document.getElementById('btn-record').classList.remove('recording');
+    };
+    mediaRecorder.start();
+    isRecording = true;
+    document.getElementById('btn-record').classList.add('recording');
+    document.getElementById('record-label').textContent = 'Stop Recording';
+    document.getElementById('btn-record').querySelector('.icon').textContent = '⏹';
+    startTimer();
+  } catch (err) {
+    alert('Microphone access is required. Please allow access and try again.');
+    console.error(err);
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+    isRecording = false;
+    document.getElementById('record-label').textContent = '✅ Recorded';
+    document.getElementById('btn-record').querySelector('.icon').textContent = '✅';
+    stopTimer();
+  }
+}
+
+function resetRecording() {
+  audioBlob = null; audioChunks = [];
+  document.getElementById('preview-area').style.display = 'none';
+  document.getElementById('btn-record').classList.remove('recording');
+  document.getElementById('record-label').textContent = 'Start Recording';
+  document.getElementById('btn-record').querySelector('.icon').textContent = '⏺';
+  seconds = 0; document.getElementById('timer').textContent = '0:00';
+}
+
+function startTimer() {
+  seconds = 0; updateTimer();
+  recordingTimer = setInterval(() => {
+    seconds++;
+    if (seconds >= 120) stopRecording();
+    updateTimer();
+  }, 1000);
+}
+
+function stopTimer() { if (recordingTimer) clearInterval(recordingTimer); recordingTimer = null; }
+
+function updateTimer() {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  document.getElementById('timer').textContent = `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+async function submitStory() {
+  if (!audioBlob) return;
+  const formData = new FormData();
+  formData.append('title', document.getElementById('item-title').value.trim());
+  formData.append('daangn_item_id', document.getElementById('daangn-id').value.trim());
+  formData.append('voice_file', audioBlob, 'recording.webm');
+
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('btn-submit').disabled = true;
+
+  try {
+    const res = await fetch('/api/items', { method: 'POST', body: formData });
+    const data = await res.json();
+
+    qrSvgData = data.qr_svg;
+    currentQrCodeId = data.qr_code_id;
+
+    document.getElementById('step-record').style.display = 'none';
+    document.getElementById('step-result').style.display = 'block';
+    document.getElementById('qr-result').innerHTML = qrSvgData;
+    document.getElementById('qr-url').textContent = window.location.origin + '/s/' + currentQrCodeId;
+  } catch (err) {
+    document.getElementById('step-record').style.display = 'none';
+    document.getElementById('step-error').style.display = 'block';
+    document.getElementById('error-message').textContent = 'Failed to save story. Please try again.';
+    console.error(err);
+  } finally {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('btn-submit').disabled = false;
+  }
+}
+
+function downloadQR() {
+  const svg = document.getElementById('qr-result').innerHTML;
+  const blob = new Blob([svg], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `object-souls-${(currentQrCodeId || 'qr').slice(0, 8)}.svg`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function copyLink() {
+  const url = document.getElementById('qr-url').textContent;
+  try { await navigator.clipboard.writeText(url); alert('Link copied!'); }
+  catch { prompt('Copy this link:', url); }
+}
+
+function resetAll() {
+  document.getElementById('step-record').style.display = 'block';
+  document.getElementById('step-result').style.display = 'none';
+  document.getElementById('step-error').style.display = 'none';
+  resetRecording();
+  document.getElementById('item-title').value = '';
+  document.getElementById('daangn-id').value = '';
+}
+</script>
+</body>
+</html>
