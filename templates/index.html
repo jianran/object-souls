@@ -369,7 +369,8 @@ async function submitStory() {
   const formData = new FormData();
   formData.append('title', $('item-title').value.trim());
   formData.append('daangn_item_id', '');
-  formData.append('voice_file', state.audioBlob, 'recording.webm');
+  const voiceExt = state.audioBlob.type.includes('mp4') ? 'mp4' : 'webm';
+  formData.append('voice_file', state.audioBlob, 'recording.' + voiceExt);
   formData.append('photo_file', state.photoFile, 'object-photo.jpg');
 
   $('loading').style.display = 'block';

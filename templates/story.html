@@ -93,9 +93,7 @@ if (ITEM_DATA) {
     card.className = 'story-card';
     card.innerHTML =
       '<div class="story-number">이야기 #' + (i + 1) + '</div>' +
-      '<audio controls class="story-audio">' +
-        '<source src="/recordings/' + story.voice_filename + '" type="audio/webm">' +
-      '</audio>' +
+      '<audio controls class="story-audio" src="/recordings/' + story.voice_filename + '"></audio>' +
       '<div class="story-meta">' +
         (story.created_at || '').slice(0, 10) + ' 기록됨' +
         (story.email ? ' · <span class="email-badge">💌 답장 가능</span>' : '') +
@@ -177,7 +175,8 @@ async function addStory() {
   if (!audioBlob) return;
   var formData = new FormData();
   formData.append('qr_code_id', QR_CODE_ID);
-  formData.append('voice_file', audioBlob, 'story.webm');
+  const voiceExt = audioBlob.type.includes('mp4') ? 'mp4' : 'webm';
+  formData.append('voice_file', audioBlob, 'story.' + voiceExt);
   formData.append('email', document.getElementById('email').value.trim());
 
   document.getElementById('loading').style.display = 'block';
