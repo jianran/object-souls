@@ -3,29 +3,63 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Object Souls</title>
+<title>Object Souls — 물건의 영혼</title>
 <link rel="stylesheet" href="/static/style.css">
 <link rel="icon" href="/static/favicon.ico">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 <div class="container" id="app">
-  <div id="step-record">
-    <h1>🎤</h1>
-    <h2>물건의 이야기를 남겨주세요</h2>
-    <p class="subtitle">이 물건이 왜 특별한가요? <br>다음 주인에게 당신의 목소리를 들려주세요.</p>
+
+  <!-- Progress dots -->
+  <div class="progress" id="progress">
+    <div class="dot active" data-step="1"></div>
+    <div class="dot" data-step="2"></div>
+    <div class="dot" data-step="3"></div>
+    <div class="dot" data-step="4"></div>
+  </div>
+
+  <!-- ===== STEP 1: PHOTO ===== -->
+  <div class="step active" id="step1">
+    <div class="step-title">📷 물건 사진</div>
+    <div class="step-desc">물건의 사진을 찍거나 갤러리에서 선택하세요</div>
+
+    <div class="photo-area" id="photoArea">
+      <input type="file" accept="image/*" capture="environment" id="photoInput">
+      <div class="photo-placeholder">
+        <div class="photo-icon">📸</div>
+        <div class="photo-label">
+          <strong>사진 찍기</strong>
+          <span>또는 갤러리에서 선택</span>
+        </div>
+      </div>
+      <img id="photoPreview" alt="">
+    </div>
+
+    <div id="photoSelected" style="display:none;" class="photo-selected">
+      <p>✅ 사진이 선택되었습니다</p>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-next1" disabled>다음 — 목소리 녹음</button>
+    </div>
+  </div>
+
+  <!-- ===== STEP 2: VOICE ===== -->
+  <div class="step" id="step2">
+    <div class="step-title">🎤 이야기 녹음</div>
+    <div class="step-desc">이 물건이 왜 특별한가요? 다음 주인에게 들려주세요.</div>
 
     <div class="form-group">
       <label>물건 이름 (선택사항)</label>
       <input type="text" id="item-title" placeholder="예: 빈티지 니콘 카메라" maxlength="100">
     </div>
 
-    <div class="form-group">
-      <label>당근 물건 ID (선택사항, QR 분실 시 복구용)</label>
-      <input type="text" id="daangn-id" placeholder="당근 게시글의 ID를 입력하세요" maxlength="50">
-    </div>
-
     <div class="recorder" id="recorder">
       <div class="timer" id="timer">0:00</div>
+      <div class="waveform-container" id="waveformContainer">
+        <canvas id="waveformCanvas"></canvas>
+      </div>
       <button class="btn btn-record" id="btn-record" onclick="toggleRecording()">
         <span class="icon">⏺</span>
         <span class="label" id="record-label">녹음 시작</span>
@@ -34,41 +68,77 @@
 
     <div id="preview-area" style="display:none;">
       <audio id="preview-audio" controls></audio>
-      <button class="btn btn-primary" id="btn-submit" onclick="submitStory()">
-        ✨ QR 코드 생성
-      </button>
-      <button class="btn btn-secondary" onclick="resetRecording()">
-        🔄 다시 녹음
-      </button>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btn-submit" onclick="submitStory()">
+          ✨ QR 코드 생성
+        </button>
+        <button class="btn btn-secondary" onclick="resetRecording()">
+          🔄 다시 녹음
+        </button>
+      </div>
     </div>
 
     <div id="loading" style="display:none;">
-      <p>처리 중...</p>
+      <div class="spinner"></div>
+      <p>이야기 저장 중...</p>
+    </div>
+
+    <div class="btn-row" id="step2-back">
+      <button class="btn btn-ghost" onclick="goToStep(1)">← 이전: 사진 다시 찍기</button>
     </div>
   </div>
 
-  <div id="step-result" style="display:none;">
-    <h2>✅ 이야기가 저장되었습니다!</h2>
-    <p class="subtitle">QR 코드를 다운로드해서 당근 게시글에 추가하세요.</p>
+  <!-- ===== STEP 3: CANVAS COMPOSITION ===== -->
+  <div class="step" id="step3">
+    <div class="step-title">🖼️ 이미지 생성</div>
+    <div class="step-desc">사진과 QR 코드를 합쳐서 당근 게시글에 올릴 이미지를 만듭니다</div>
 
-    <div class="qr-result" id="qr-result"></div>
-    <p class="qr-url" id="qr-url"></p>
-
-    <div class="btn-group">
-      <button class="btn btn-primary" onclick="downloadQR()">📥 QR 다운로드</button>
-      <button class="btn btn-secondary" onclick="copyLink()">🔗 링크 복사</button>
+    <div class="canvas-area" id="canvasArea">
+      <canvas id="resultCanvas"></canvas>
     </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="generateBtn">✨ 이미지 생성하기</button>
+    </div>
+
+    <div class="result-preview" id="resultPreview" style="display:none;"></div>
+
+    <div class="qr-verify" id="qrVerify" style="display:none;">
+      <h3>📱 QR 코드 (별도)</h3>
+      <p class="subtitle">QR 코드만 따로 저장하려면 아래를 사용하세요</p>
+      <div id="qrcode-standalone"></div>
+      <button class="btn btn-secondary" onclick="downloadQRStandalone()">📥 QR 코드 다운로드 (SVG)</button>
+    </div>
+
+    <div class="btn-row" id="step3-actions" style="display:none;">
+      <button class="btn btn-primary" id="downloadBtn">📥 이미지 다운로드</button>
+      <button class="btn btn-secondary" id="shareBtn">📤 공유하기</button>
+      <button class="btn btn-ghost" onclick="goToStep(2)">← 이전: 녹음 다시하기</button>
+    </div>
+  </div>
+
+  <!-- ===== STEP 4: RESULT ===== -->
+  <div class="step" id="step4">
+    <div class="step-title">✅ 완료!</div>
+    <div class="step-desc">이미지를 당근 게시글에 추가하고, QR 코드도 핸드폰에 저장하세요.</div>
 
     <div class="tip">
       <strong>💡 팁:</strong> QR 이미지를 핸드폰에도 저장하세요 — 직거래 시 상대방이 바로 스캔할 수 있습니다.
     </div>
 
-    <button class="btn btn-secondary" onclick="resetAll()">➕ 다른 이야기 녹음하기</button>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="downloadImage()">📥 최종 이미지 다운로드</button>
+      <button class="btn btn-secondary" onclick="shareImage()">📤 공유하기</button>
+    </div>
+
+    <hr>
+    <button class="btn btn-ghost" onclick="resetAll()">➕ 새 물건 등록하기</button>
   </div>
 
-  <div id="step-error" style="display:none;">
+  <!-- ===== ERROR ===== -->
+  <div class="step" id="step-error">
     <h2>⚠️ 오류가 발생했습니다</h2>
-    <p id="error-message"></p>
+    <p class="subtitle" id="error-message"></p>
     <button class="btn btn-secondary" onclick="resetAll()">다시 시도</button>
   </div>
 </div>
@@ -78,14 +148,92 @@
 </footer>
 
 <script>
+// ===== STATE =====
+const state = {
+  photoFile: null,
+  photoDataUrl: null,
+  audioBlob: null,
+  qrSvgData: null,
+  qrCodeId: null,
+  canvasDataUrl: null,
+  storyUrl: null
+};
+
+// ===== DOM REFS =====
+const $ = id => document.getElementById(id);
+const photoInput = $('photoInput');
+const photoPreview = $('photoPreview');
+const photoArea = $('photoArea');
+const photoSelected = $('photoSelected');
+const btnNext1 = $('btn-next1');
+const resultCanvas = $('resultCanvas');
+const resultPreview = $('resultPreview');
+const generateBtn = $('generateBtn');
+const qrStandalone = $('qrcode-standalone');
+const qrVerify = $('qrVerify');
+const downloadBtn = $('downloadBtn');
+const shareBtn = $('shareBtn');
+
+// ===== STEP NAVIGATION =====
+function goToStep(n) {
+  document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+  document.getElementById(`step${n}`).classList.add('active');
+  document.querySelectorAll('.progress .dot').forEach((dot, i) => {
+    dot.classList.toggle('active', i+1 === n);
+    dot.classList.toggle('done', i+1 < n);
+  });
+}
+
+// ===== STEP 1: PHOTO =====
+photoInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  state.photoFile = file;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    state.photoDataUrl = ev.target.result;
+    photoPreview.src = state.photoDataUrl;
+    photoPreview.style.display = 'block';
+    photoArea.classList.add('has-photo');
+    photoSelected.style.display = 'block';
+    btnNext1.disabled = false;
+  };
+  reader.readAsDataURL(file);
+});
+
+photoArea.addEventListener('click', (e) => {
+  if (photoArea.classList.contains('has-photo')) {
+    // Click on existing photo — offer retake
+    if (confirm('새 사진을 찍으시겠어요?')) {
+      resetPhoto();
+      photoInput.click();
+    }
+  }
+});
+
+function resetPhoto() {
+  state.photoFile = null;
+  state.photoDataUrl = null;
+  photoPreview.style.display = 'none';
+  photoPreview.src = '';
+  photoArea.classList.remove('has-photo');
+  photoSelected.style.display = 'none';
+  btnNext1.disabled = true;
+  photoInput.value = '';
+}
+
+btnNext1.addEventListener('click', () => goToStep(2));
+
+// ===== STEP 2: VOICE RECORDING (existing logic preserved) =====
 let mediaRecorder = null;
 let audioChunks = [];
-let audioBlob = null;
 let recordingTimer = null;
 let seconds = 0;
 let isRecording = false;
-let qrSvgData = null;
-let currentQrCodeId = null;
+let analyserNode = null;
+let audioContext = null;
+let waveformStream = null;
+let animFrame = null;
 
 async function toggleRecording() {
   if (isRecording) { stopRecording(); return; }
@@ -95,26 +243,39 @@ async function toggleRecording() {
 async function startRecording() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    waveformStream = stream;
+
+    // Setup waveform
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioContext.createMediaStreamSource(stream);
+    analyserNode = audioContext.createAnalyser();
+    analyserNode.fftSize = 256;
+    source.connect(analyserNode);
+    drawWaveform();
+
     mediaRecorder = new MediaRecorder(stream, {
       mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
     });
     audioChunks = [];
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
     mediaRecorder.onstop = () => {
-      audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+      state.audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
       stream.getTracks().forEach(t => t.stop());
-      document.getElementById('preview-area').style.display = 'block';
-      document.getElementById('preview-audio').src = URL.createObjectURL(audioBlob);
-      document.getElementById('btn-record').classList.remove('recording');
+      if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+      if (audioContext) { audioContext.close(); audioContext = null; }
+      $('preview-area').style.display = 'block';
+      $('preview-audio').src = URL.createObjectURL(state.audioBlob);
+      $('btn-record').classList.remove('recording');
     };
     mediaRecorder.start();
     isRecording = true;
-    document.getElementById('btn-record').classList.add('recording');
-    document.getElementById('record-label').textContent = '녹음 중지';
-    document.getElementById('btn-record').querySelector('.icon').textContent = '⏹';
+    $('btn-record').classList.add('recording');
+    $('record-label').textContent = '녹음 중지';
+    $('btn-record').querySelector('.icon').textContent = '⏹';
+    $('step2-back').style.display = 'none';
     startTimer();
   } catch (err) {
-    alert('마이크 접근 권한이 필요합니다. 브라우저 설정에서 마이크를 허용해주세요.');
+    alert('마이크 접근 권한이 필요합니다.');
     console.error(err);
   }
 }
@@ -123,19 +284,65 @@ function stopRecording() {
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop();
     isRecording = false;
-    document.getElementById('record-label').textContent = '✅ 녹음 완료';
-    document.getElementById('btn-record').querySelector('.icon').textContent = '✅';
+    $('record-label').textContent = '✅ 녹음 완료';
+    $('btn-record').querySelector('.icon').textContent = '✅';
+    $('step2-back').style.display = 'block';
     stopTimer();
   }
 }
 
+function drawWaveform() {
+  const canvas = $('waveformCanvas');
+  const container = $('waveformContainer');
+  const rect = container.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  canvas.style.width = rect.width + 'px';
+  canvas.style.height = rect.height + 'px';
+  const ctx = canvas.getContext('2d');
+
+  function draw() {
+    if (!analyserNode) return;
+    const bufferLength = analyserNode.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    analyserNode.getByteTimeDomainData(dataArray);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const width = canvas.width;
+    const height = canvas.height;
+    const sliceWidth = width / bufferLength;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#d4b48c';
+    ctx.beginPath();
+
+    let x = 0;
+    for (let i = 0; i < bufferLength; i++) {
+      const v = dataArray[i] / 128.0;
+      const y = (v * height) / 2;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+      x += sliceWidth;
+    }
+    ctx.lineTo(width, height / 2);
+    ctx.stroke();
+
+    animFrame = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
 function resetRecording() {
-  audioBlob = null; audioChunks = [];
-  document.getElementById('preview-area').style.display = 'none';
-  document.getElementById('btn-record').classList.remove('recording');
-  document.getElementById('record-label').textContent = '녹음 시작';
-  document.getElementById('btn-record').querySelector('.icon').textContent = '⏺';
-  seconds = 0; document.getElementById('timer').textContent = '0:00';
+  state.audioBlob = null; audioChunks = [];
+  $('preview-area').style.display = 'none';
+  $('btn-record').classList.remove('recording');
+  $('record-label').textContent = '녹음 시작';
+  $('btn-record').querySelector('.icon').textContent = '⏺';
+  seconds = 0; $('timer').textContent = '0:00';
+  $('step2-back').style.display = 'block';
 }
 
 function startTimer() {
@@ -152,63 +359,243 @@ function stopTimer() { if (recordingTimer) clearInterval(recordingTimer); record
 function updateTimer() {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
-  document.getElementById('timer').textContent = `${m}:${s.toString().padStart(2, '0')}`;
+  $('timer').textContent = `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+// ===== SUBMIT: SEND VOICE + PHOTO TO API =====
 async function submitStory() {
-  if (!audioBlob) return;
-  const formData = new FormData();
-  formData.append('title', document.getElementById('item-title').value.trim());
-  formData.append('daangn_item_id', document.getElementById('daangn-id').value.trim());
-  formData.append('voice_file', audioBlob, 'recording.webm');
+  if (!state.audioBlob || !state.photoFile) return;
 
-  document.getElementById('loading').style.display = 'block';
-  document.getElementById('btn-submit').disabled = true;
+  const formData = new FormData();
+  formData.append('title', $('item-title').value.trim());
+  formData.append('daangn_item_id', '');
+  formData.append('voice_file', state.audioBlob, 'recording.webm');
+  formData.append('photo_file', state.photoFile, 'object-photo.jpg');
+
+  $('loading').style.display = 'block';
+  $('btn-submit').disabled = true;
 
   try {
     const res = await fetch('/api/items', { method: 'POST', body: formData });
     const data = await res.json();
-    qrSvgData = data.qr_svg;
-    currentQrCodeId = data.qr_code_id;
-    document.getElementById('step-record').style.display = 'none';
-    document.getElementById('step-result').style.display = 'block';
-    document.getElementById('qr-result').innerHTML = qrSvgData;
-    document.getElementById('qr-url').textContent = window.location.origin + '/s/' + currentQrCodeId;
+    state.qrSvgData = data.qr_svg;
+    state.qrCodeId = data.qr_code_id;
+    state.storyUrl = window.location.origin + '/s/' + state.qrCodeId;
+
+    // Build standalone QR DOM
+    goToStep(3);
+    generateStandaloneQR();
   } catch (err) {
-    document.getElementById('step-record').style.display = 'none';
-    document.getElementById('step-error').style.display = 'block';
-    document.getElementById('error-message').textContent = '이야기 저장에 실패했습니다. 다시 시도해주세요.';
+    goToStep(0);
+    $('error-message').textContent = '이야기 저장에 실패했습니다.';
     console.error(err);
   } finally {
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('btn-submit').disabled = false;
+    $('loading').style.display = 'none';
+    $('btn-submit').disabled = false;
   }
 }
 
-function downloadQR() {
-  const svg = document.getElementById('qr-result').innerHTML;
-  const blob = new Blob([svg], { type: 'image/svg+xml' });
-  const url = URL.createObjectURL(blob);
+// ===== STEP 3: QR GENERATION =====
+function generateStandaloneQR() {
+  qrStandalone.innerHTML = '';
+  if (state.storyUrl) {
+    try {
+      new QRCode(qrStandalone, {
+        text: state.storyUrl,
+        width: 180,
+        height: 180,
+        colorDark: '#1a1a1a',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.H
+      });
+      qrVerify.style.display = 'block';
+    } catch(e) {
+      qrStandalone.textContent = 'QR Error';
+    }
+  }
+}
+
+function downloadQRStandalone() {
+  const canvas = qrStandalone.querySelector('canvas');
+  if (!canvas) return;
+  const url = canvas.toDataURL('image/png');
   const a = document.createElement('a');
   a.href = url;
-  a.download = `object-souls-${(currentQrCodeId || 'qr').slice(0, 8)}.svg`;
+  a.download = `object-souls-qr-${(state.qrCodeId || 'qr').slice(0, 8)}.png`;
   a.click();
-  URL.revokeObjectURL(url);
 }
 
-async function copyLink() {
-  const url = document.getElementById('qr-url').textContent;
-  try { await navigator.clipboard.writeText(url); alert('링크가 복사되었습니다!'); }
-  catch { prompt('이 링크를 복사하세요:', url); }
+// ===== STEP 3: CANVAS COMPOSITION =====
+generateBtn.addEventListener('click', generateImage);
+downloadBtn.addEventListener('click', downloadImage);
+shareBtn.addEventListener('click', shareImage);
+
+function generateImage() {
+  if (!state.photoDataUrl || !state.storyUrl) return;
+
+  const img = new Image();
+  img.onload = () => {
+    drawCanvas(img);
+    imageReady();
+  };
+  img.onerror = () => alert('사진을 불러올 수 없습니다.');
+  img.src = state.photoDataUrl;
 }
 
+function drawCanvas(photoImg) {
+  const canvas = resultCanvas;
+  const container = $('canvasArea');
+  const rect = container.getBoundingClientRect();
+  const size = Math.min(rect.width, rect.height, 600);
+  const dpr = window.devicePixelRatio || 1;
+
+  canvas.width = size * dpr;
+  canvas.height = size * dpr;
+  canvas.style.width = size + 'px';
+  canvas.style.height = size + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  // --- Draw photo background (cover/crop) ---
+  const imgW = photoImg.naturalWidth;
+  const imgH = photoImg.naturalHeight;
+  const canvasRatio = size / size;
+  const imgRatio = imgW / imgH;
+
+  let sx, sy, sw, sh;
+  if (imgRatio > canvasRatio) {
+    sh = imgH;
+    sw = imgH * canvasRatio;
+    sx = (imgW - sw) / 2;
+    sy = 0;
+  } else {
+    sw = imgW;
+    sh = imgW / canvasRatio;
+    sx = 0;
+    sy = (imgH - sh) / 2;
+  }
+
+  ctx.drawImage(photoImg, sx, sy, sw, sh, 0, 0, size, size);
+
+  // --- Dark vignette overlay ---
+  const grad = ctx.createRadialGradient(size/2, size/2, size*0.2, size/2, size/2, size*0.7);
+  grad.addColorStop(0, 'rgba(0,0,0,0)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.35)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  // --- Brand watermark ---
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.font = `600 ${Math.round(size * 0.024)}px -apple-system, sans-serif`;
+  ctx.fillStyle = 'rgba(232,224,212,0.45)';
+  const textY = size - 120;
+  ctx.fillText('✦ Object Souls', size / 2, textY);
+
+  ctx.font = `${Math.round(size * 0.016)}px -apple-system, sans-serif`;
+  ctx.fillStyle = 'rgba(232,224,212,0.3)';
+  ctx.fillText('물건의 영혼을 기록하다', size / 2, textY + Math.round(size * 0.028));
+
+  // --- Draw QR code at BOTTOM-RIGHT ---
+  const qrSize = Math.round(size * 0.16); // ~96px on 600px canvas
+  const qrPadding = Math.round(size * 0.025);
+  const qrX = size - qrSize - qrPadding;
+  const qrY = size - qrSize - qrPadding;
+
+  // Background behind QR
+  const bgSize = qrSize + Math.round(size * 0.015);
+  ctx.fillStyle = 'rgba(26,20,16,0.7)';
+  ctx.beginPath();
+  ctx.roundRect(qrX - 3, qrY - 3, bgSize + 6, bgSize + 6, 4);
+  ctx.fill();
+
+  // Generate QR canvas and draw it at bottom-right
+  const qrCanvas = document.createElement('canvas');
+  qrCanvas.width = qrSize;
+  qrCanvas.height = qrSize;
+  const qrCtx = qrCanvas.getContext('2d');
+
+  // Draw white background on QR canvas
+  qrCtx.fillStyle = '#ffffff';
+  qrCtx.fillRect(0, 0, qrSize, qrSize);
+
+  // Use the standalone QR canvas as source
+  const standaloneCanvas = qrStandalone.querySelector('canvas');
+  if (standaloneCanvas) {
+    ctx.drawImage(standaloneCanvas, qrX, qrY, qrSize, qrSize);
+  }
+
+  // Save the final data URL
+  state.canvasDataUrl = canvas.toDataURL('image/png');
+}
+
+function imageReady() {
+  $('generateBtn').style.display = 'none';
+  $('resultPreview').style.display = 'block';
+  $('resultPreview').innerHTML = `<img src="${state.canvasDataUrl}" style="width:100%;height:auto;border-radius:12px;" alt="Result">`;
+  $('step3-actions').style.display = 'block';
+  $('qrVerify').style.display = 'block';
+}
+
+function downloadImage() {
+  if (!state.canvasDataUrl) return;
+  const a = document.createElement('a');
+  a.href = state.canvasDataUrl;
+  a.download = `object-souls-${(state.qrCodeId || 'image').slice(0, 8)}.png`;
+  a.click();
+
+  // Also show step 4
+  goToStep(4);
+}
+
+async function shareImage() {
+  if (!state.canvasDataUrl) return;
+
+  try {
+    const blob = await (await fetch(state.canvasDataUrl)).blob();
+    const file = new File([blob], `object-souls-${(state.qrCodeId || 'image').slice(0, 8)}.png`, { type: 'image/png' });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
+      await navigator.share({
+        title: 'Object Souls',
+        text: '이 물건의 이야기를 들어보세요!',
+        files: [file]
+      });
+    } else {
+      // Fallback: download
+      downloadImage();
+    }
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      downloadImage();
+    }
+  }
+
+  goToStep(4);
+}
+
+// ===== RESET =====
 function resetAll() {
-  document.getElementById('step-record').style.display = 'block';
-  document.getElementById('step-result').style.display = 'none';
-  document.getElementById('step-error').style.display = 'none';
+  state.photoFile = null;
+  state.photoDataUrl = null;
+  state.audioBlob = null;
+  state.qrSvgData = null;
+  state.qrCodeId = null;
+  state.canvasDataUrl = null;
+  state.storyUrl = null;
+
+  resetPhoto();
   resetRecording();
-  document.getElementById('item-title').value = '';
-  document.getElementById('daangn-id').value = '';
+  $('item-title').value = '';
+  $('resultPreview').style.display = 'none';
+  $('resultPreview').innerHTML = '';
+  $('generateBtn').style.display = 'block';
+  $('step3-actions').style.display = 'none';
+  $('qrVerify').style.display = 'none';
+  qrStandalone.innerHTML = '';
+
+  goToStep(1);
 }
 </script>
 </body>

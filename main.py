@@ -27,14 +27,17 @@ app = FastAPI(title="Object Souls")
 BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
 RECORDINGS_DIR = BASE_DIR / "recordings"
+PHOTOS_DIR = BASE_DIR / "photos"
 STATIC_DIR = BASE_DIR / "static"
 
 DATA_DIR.mkdir(exist_ok=True)
 RECORDINGS_DIR.mkdir(exist_ok=True)
+PHOTOS_DIR.mkdir(exist_ok=True)
 STATIC_DIR.mkdir(exist_ok=True)
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/recordings", StaticFiles(directory=str(RECORDINGS_DIR)), name="recordings")
+app.mount("/photos", StaticFiles(directory=str(PHOTOS_DIR)), name="photos")
 
 
 # --- Database ---
@@ -138,21 +141,33 @@ async def create_item(
     title: str = Form(""),
     daangn_item_id: str = Form(""),
     voice_file: UploadFile = File(...),
+    photo_file: UploadFile = File(None),
 ):
-    """Create a new item with a voice story and return QR code."""
+    """Create a new item with a voice story and optional photo, return QR code."""
     qr_code_id = str(uuid.uuid4())
     item_id = str(uuid.uuid4())
     story_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
 
+    # Save voice
     ext = (voice_file.filename or "recording.webm").split(".")[-1]
-    filename = f"{story_id}.{ext}"
-    filepath = RECORDINGS_DIR / filename
-
-    content = await voice_file.read()
-    if not content:
+    voice_filename = f"{story_id}.{ext}"
+    voice_path = RECORDINGS_DIR / voice_filename
+    voice_content = await voice_file.read()
+    if not voice_content:
         raise HTTPException(400, "Empty voice file")
-    filepath.write_bytes(content)
+    voice_path.write_bytes(voice_content)
+
+    # Save photo if provided
+    photo_url = ""
+    if photo_file and photo_file.filename:
+        photo_ext = (photo_file.filename or "photo.jpg").split(".")[-1]
+        photo_filename = f"{qr_code_id}.{photo_ext}"
+        photo_path = PHOTOS_DIR / photo_filename
+        photo_content = await photo_file.read()
+        if photo_content:
+            photo_path.write_bytes(photo_content)
+            photo_url = f"/photos/{photo_filename}"
 
     conn = get_db()
     conn.execute(
@@ -162,7 +177,7 @@ async def create_item(
     )
     conn.execute(
         "INSERT INTO stories (id, qr_code_id, voice_filename, created_at) VALUES (?, ?, ?, ?)",
-        (story_id, qr_code_id, filename, now),
+        (story_id, qr_code_id, voice_filename, now),
     )
     conn.commit()
     conn.close()
@@ -175,6 +190,7 @@ async def create_item(
         "qr_code_id": qr_code_id,
         "story_url": story_url,
         "qr_svg": qr_svg,
+        "photo_url": photo_url,
         "story_count": 1,
     })
 
